@@ -1,5 +1,6 @@
 import { ProjectEditorPage } from '@/features/editor/ProjectEditorPage';
 
-export default function ProjectPage({ params }: { params: { projectId: string } }) {
-  return <ProjectEditorPage projectId={params.projectId} />;
+export default async function ProjectPage({ params }: { params: Promise<{ projectId: string }> }) {
+  const { projectId } = await params;
+  return <ProjectEditorPage projectId={projectId} />;
 }

@@ -1,4 +1,4 @@
-import type { DesignElement } from '@/types';
+import type { DesignElement, TemplateDefinition } from '@/types';
 import type { LayoutContext, LayoutEngine } from './types';
 
 export function selectLayoutMode(peopleCount: number): 'single' | 'double' | 'grid' | 'advanced-grid' | 'dense' | 'paged' {
@@ -10,6 +10,13 @@ export function selectLayoutMode(peopleCount: number): 'single' | 'double' | 'gr
   return 'paged';
 }
 
+
+function templateLayoutRules(template: TemplateDefinition): { columns?: number; headerRatio: number; footerRatio: number; gapRatio: number; photoRatio: number } | undefined {
+  if (!('configuration' in template)) return undefined;
+  const configuration = template.configuration as { layout?: { columns?: number; headerRatio: number; footerRatio: number; gapRatio: number; photoRatio: number } };
+  return configuration.layout;
+}
+
 function columnsForMode(mode: ReturnType<typeof selectLayoutMode>): number {
   if (mode === 'single') return 1;
   if (mode === 'double') return 2;
@@ -19,19 +26,20 @@ function columnsForMode(mode: ReturnType<typeof selectLayoutMode>): number {
 }
 
 export const smartLayoutEngine: LayoutEngine = {
-  generate({ project }: LayoutContext): DesignElement[] {
+  generate({ project, template }: LayoutContext): DesignElement[] {
     const canvas = project.size;
     const mode = selectLayoutMode(project.people.length);
-    const columns = columnsForMode(mode);
-    const gap = Math.max(20, Math.round(canvas.width * 0.025));
-    const headerHeight = Math.round(canvas.height * 0.13);
-    const footerHeight = project.date?.enabled || project.workingHours?.enabled ? Math.round(canvas.height * 0.1) : gap;
+    const rules = templateLayoutRules(template);
+    const columns = rules?.columns ?? columnsForMode(mode);
+    const gap = Math.max(20, Math.round(canvas.width * (rules?.gapRatio ?? 0.025)));
+    const headerHeight = Math.round(canvas.height * (rules?.headerRatio ?? 0.13));
+    const footerHeight = project.date?.enabled || project.workingHours?.enabled ? Math.round(canvas.height * (rules?.footerRatio ?? 0.1)) : gap;
     const availableWidth = canvas.width - gap * (columns + 1);
     const cardWidth = Math.floor(availableWidth / columns);
     const rows = Math.max(1, Math.ceil(project.people.length / columns));
     const availableHeight = Math.max(240, canvas.height - headerHeight - footerHeight - gap * (rows + 1));
     const cardHeight = Math.floor(availableHeight / rows);
-    const photoHeight = Math.max(120, Math.floor(cardHeight * 0.62));
+    const photoHeight = Math.max(120, Math.floor(cardHeight * (rules?.photoRatio ?? 0.62)));
     const nameFontSize = Math.max(24, Math.min(42, Math.round(cardWidth * 0.09)));
     const detailFontSize = Math.max(18, Math.round(nameFontSize * 0.68));
     const elements: DesignElement[] = [];

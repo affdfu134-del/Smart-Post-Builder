@@ -1,5 +1,7 @@
 import type { DesignElement, EditorState, ExportFormat } from '@/types';
 
+export interface EditorExportOptions { width?: number; height?: number; quality?: number; backgroundColor?: string; }
+
 export interface EditorAdapter {
   mount(container: HTMLCanvasElement, options: { width: number; height: number }): Promise<void> | void;
   load(elements: DesignElement[], assetsById?: Map<string, { name: string; uri: string }>, background?: string): Promise<void> | void;
@@ -15,7 +17,7 @@ export interface EditorAdapter {
   redo(): void;
   setZoom(zoom: number): void;
   serialize(): EditorState;
-  export(format: ExportFormat): Promise<Blob>;
+  export(format: ExportFormat, options?: EditorExportOptions): Promise<Blob>;
   destroy(): void;
 }
 
