@@ -1,5 +1,5 @@
 import type { DesignElement, EditorObjectState, EditorState, ExportFormat, ProjectBackground } from '@/types';
-import type { EditorAdapter } from './editorAdapter';
+import type { EditorAdapter, EditorExportOptions } from './editorAdapter';
 import { designElementToFabricDescriptor, descriptorsToEditorState } from './fabricObjectMapper';
 import { EditorHistory } from './editorHistory';
 
@@ -7,9 +7,14 @@ type FabricCanvas = any;
 type FabricObject = any;
 
 function backgroundToCss(background: ProjectBackground | undefined): string | undefined {
-  if (!background) return undefined;
+  if (!background) return '#ffffff';
   if (background.kind === 'color') return background.color;
-  return background.color;
+  return background.color ?? '#ffffff';
+}
+
+export function projectBackgroundToEditorElements(background: ProjectBackground | undefined, width: number, height: number): DesignElement[] {
+  if (background?.kind !== 'image') return [];
+  return [{ id: 'project-background-image', kind: 'image', assetId: background.image.id, x: 0, y: 0, width, height, fit: 'cover', role: 'background' }];
 }
 
 export class FabricEditorAdapter implements EditorAdapter {
@@ -71,7 +76,25 @@ export class FabricEditorAdapter implements EditorAdapter {
   undo() { const snapshot = this.history.undo(); if (snapshot) this.restoreSnapshot(snapshot); }
   redo() { const snapshot = this.history.redo(); if (snapshot) this.restoreSnapshot(snapshot); }
   setZoom(zoom: number) { this.canvas?.setZoom(zoom); this.canvas?.renderAll(); }
-  async export(format: ExportFormat): Promise<Blob> { const dataUrl = this.canvas?.toDataURL({ format }) ?? ''; return (await fetch(dataUrl)).blob(); }
+  async export(format: ExportFormat, options: EditorExportOptions = {}): Promise<Blob> {
+    if (!this.canvas) throw new Error('Editor canvas is not mounted.');
+    const previousZoom = this.canvas.getZoom?.() ?? 1;
+    const previousViewport = this.canvas.viewportTransform ? [...this.canvas.viewportTransform] : undefined;
+    const previousBackground = this.canvas.backgroundColor;
+    try {
+      this.canvas.setViewportTransform?.([1, 0, 0, 1, 0, 0]);
+      this.canvas.setZoom?.(1);
+      if (format === 'jpg' && !this.canvas.backgroundColor) this.canvas.backgroundColor = options.backgroundColor ?? '#ffffff';
+      this.canvas.renderAll();
+      const dataUrl = this.canvas.toDataURL({ format: format === 'jpg' ? 'jpeg' : 'png', quality: options.quality, multiplier: 1, left: 0, top: 0, width: options.width ?? this.width, height: options.height ?? this.height });
+      return (await fetch(dataUrl)).blob();
+    } finally {
+      this.canvas.backgroundColor = previousBackground;
+      if (previousViewport) this.canvas.setViewportTransform?.(previousViewport);
+      this.canvas.setZoom?.(previousZoom);
+      this.canvas.renderAll();
+    }
+  }
   destroy() { this.canvas?.dispose(); this.canvas = null; }
 
   serialize(): EditorState {
